@@ -19,7 +19,7 @@ class Dataset(ABC):
 class Parking_dataset(Dataset):
     def __init__(self, img_ptr=0) -> None:
         super(Parking_dataset, self).__init__()
-        self.__dataset_root_path = "../parking/"
+        self.__dataset_root_path = "../data/parking/"
         self.__img_dir_path = osp.join(self.__dataset_root_path, "images")
         
         # load K matrix
@@ -64,7 +64,7 @@ class Parking_dataset(Dataset):
 class KITTI_dataset(Dataset):
     def __init__(self, img_ptr=0) -> None:
         super(KITTI_dataset, self).__init__()
-        self._dataset_root_path = "../kitti/05/"
+        self._dataset_root_path = "../data/kitti/05/"
         self._img_dir_path = osp.join(self._dataset_root_path, "image_0")
         
         # load K matrix

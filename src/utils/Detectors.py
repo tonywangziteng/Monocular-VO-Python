@@ -1,21 +1,101 @@
+from typing import Tuple
 import cv2
 import numpy as np
 from abc import ABC, abstractmethod
+from enum import Enum
+
+import pdb
+
+class DET_TYPE(Enum):
+    HARRIS = 1 
 
 class Detectors(ABC):
     def __init__(self) -> None:
         super().__init__()
 
     @abstractmethod
-    def detect(self):
-        pass
+    def detect(
+        self, 
+        img:np.ndarray, 
+    ):
+        if len(img.shape)==3:
+            return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     def _distribute_keypts(self):
         pass
 
-class Harris:
+class Harris_Detector(Detectors):
+    def __init__(
+        self, 
+    ) -> None:
+        super().__init__()
+
+    # def detect(self, img: np.ndarray):
+    #     super().detect(img)
+
+    def detect(
+        self, 
+        img: np.ndarray, 
+        nms_size:int = 3, 
+        sobel_kernel_size:int = 3, 
+        harris_threshold:float = 2e-2,
+        harris_k:float = 0.04, 
+        **kparams
+    ):
+        super().detect(img)
+        kp_max_num = kparams.get('kp_max_num')
+
+        corner_response_map = cv2.cornerHarris(
+            img, blockSize=nms_size, ksize=sobel_kernel_size, k=harris_k
+        )
+        corner_response_map[corner_response_map<0] = 0
+        kps = self._get_kps(
+            corner_response_map, response_threshold=4e-2, kp_max_num=kp_max_num
+        )
+        # TODO: distribute keypoints
+        pdb.set_trace()
+
+    def _get_kps(
+        self, 
+        harris_response_map:np.ndarray, 
+        response_threshold:float, nms_radius:int=3, kp_max_num:int=None, 
+    ) -> np.ndarray:
+        key_pts_list = []
+        scores = np.copy(harris_response_map)
+        scores[scores<response_threshold] = 0
+
+        while True:
+            print(scores.max())
+            if scores.max() == 0:
+                break
+            if kp_max_num is not None and len(key_pts_list)>=kp_max_num:
+                break
+            kp = np.unravel_index(scores.argmax(), scores.shape)
+            key_pts_list.append(kp)
+            scores = self._supress(scores, kp, nms_radius)
+        np.array(key_pts_list, dtype=np.float64)
+
+    def _supress(self, scores:np.ndarray, kp:Tuple[int], radius:int=3)->np.ndarray:
+        height, width = scores.shape
+        left_bound = max(0, kp[1]-radius)
+        top_bound = max(0, kp[0]-radius)
+        right_bound = min(width-1, kp[1]+radius)
+        bottom_bound = min(height-1, kp[0]+radius)
+
+        scores[top_bound:bottom_bound, left_bound:right_bound] = 0
+        return scores
+
+
+
+class SIFT_Detector(Detectors):
     def __init__(self) -> None:
-        pass
+        super().__init__()
+
+DETECTORS = {
+    DET_TYPE.HARRIS: Harris_Detector
+}
+
+
 
 # class Harris:
 

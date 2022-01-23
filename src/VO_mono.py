@@ -3,14 +3,13 @@ import cv2
 import numpy as np
 import logging
 from enum import Enum, auto
-from numpy.linalg.linalg import _tensorsolve_dispatcher
 from scipy.spatial.transform import Rotation as R
 import pdb
 from abc import ABC, abstractclassmethod
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
 
-from klt_pnp.code.Initialization import Harris
+from src.utils.Detectors import Harris
 
 
 F_detectors = {'FAST': cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True),
