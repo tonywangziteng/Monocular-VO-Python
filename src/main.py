@@ -1,7 +1,10 @@
+import cv2
 import logging
 import matplotlib.pyplot as plt
-from utils.Detectors import Harris_Detector
+import pdb
 
+
+from utils.Detectors import Harris_Detector
 from utils.utils import get_args
 from dataset import datasets
 
@@ -18,7 +21,12 @@ def main():
     # -----------------------------------------
     img0, rgb_img, _ = dataset.get_next_image()
     detector = Harris_Detector()
-    detector.detect(img0)
+    kps = detector.detect(img0, harris_threshold=0.01)
+    img_to_show = cv2.drawKeypoints(rgb_img, cv2.KeyPoint_convert(kps), rgb_img)
+    plt.figure()
+    plt.imshow(img_to_show)
+    plt.show()
+
     # -----------------------------------------
 
     # VO = VOs.VO_TYPES[args.vo]()

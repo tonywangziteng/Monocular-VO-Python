@@ -1,4 +1,8 @@
-from typing import Tuple
+from email.policy import default
+from importlib.resources import path
+import logging
+from math import ceil, floor
+from typing import Any, Tuple
 import cv2
 import numpy as np
 from abc import ABC, abstractmethod
@@ -24,45 +28,97 @@ class Detectors(ABC):
     def _distribute_keypts(self):
         pass
 
+    def _extract_param(self, param_dict:dict, name:str, default:Any=None, param_type:type=None):
+        res = param_dict.get(name)
+        if res is None:
+            return default
+        else:
+            if param_type is None or isinstance(res, param_type):
+                return res
+            else:
+                logging.error('result type {} is not of type {}'.format(type(res), param_type))
+                raise TypeError
+
 class Harris_Detector(Detectors):
     def __init__(
         self, 
     ) -> None:
         super().__init__()
 
-    # def detect(self, img: np.ndarray):
-    #     super().detect(img)
-
     def detect(
         self, 
         img: np.ndarray, 
-        nms_size:int = 3, 
-        sobel_kernel_size:int = 3, 
-        harris_threshold:float = 2e-2,
-        harris_k:float = 0.04, 
+        harris_threshold:float = 5e-3,
         **kparams
-    ):
+    )->np.ndarray:
+        """
+        :params img: gray scale image
+        :params nms_size:int = 3, block size to average the gradient
+        :params sobel_kernel_size:int = 3, 
+        :params harris_threshold:float = 2e-2,
+        :params harris_k:float = 0.04, k of det(M)-k*tr(M)^2
+        :params **kparams:
+            kp_max_num: int, max keypoint number to return, default infinity
+            nms_radius: int, nms radius when selecting keypoints
+            block_size: int=3, block size to average the gradient
+            sobel_kernel_size:int = 3, 
+            harris_k:float = 0.04, 
+
+        :return: (n*2) ndarray for n keypoints in image coordinate
+        """
         super().detect(img)
-        kp_max_num = kparams.get('kp_max_num')
+        # TODO: Go through the whole process, especially check _extract_param func
+
+        # extract harris parameters
+        block_size = self._extract_param(kparams, 'block_size', 3, int)
+        sobel_kernel_size = self._extract_param(kparams, 'sobel_kernel_size', 3, int)
+        harris_k = self._extract_param(kparams, 'harris_k', 0.04, float)
 
         corner_response_map = cv2.cornerHarris(
-            img, blockSize=nms_size, ksize=sobel_kernel_size, k=harris_k
+            img, blockSize=block_size, ksize=sobel_kernel_size, k=harris_k
         )
+
         corner_response_map[corner_response_map<0] = 0
         kps = self._get_kps(
-            corner_response_map, response_threshold=4e-2, kp_max_num=kp_max_num
+            corner_response_map, 
+            response_threshold=harris_threshold, 
+            nms_radius=self._extract_param(kparams, 'nms_radius', default=3),
+            kp_max_num=self._extract_param(kparams, 'kp_max_num')
         )
-        # TODO: distribute keypoints
-        pdb.set_trace()
+
+        return kps
+
+    # TODO: distribute keypoints
+    def _distribute(
+        self, 
+        img:np.ndarray, 
+        x_num:int=1, y_num:int=1, 
+        block_max_pts_num:int=None, 
+        **kparmas
+    ) -> np.ndarray:        
+        height, width = img.shape
+
+        block_height, block_width = 1.*img.shape/x_num, 1.*img.shape/y_num
+
+        for i in range(x_num):
+            for j in range(y_num):
+                left_bound, right_bound = floor(i*block_width), floor((i+1)*block_width)
+                top_bound, bottom_bound = floor(j*block_width), floor((j+1)*block_width)
+                patch = img[top_bound:bottom_bound, left_bound:right_bound]
+                kpts = self.detect(patch, **kparmas)
 
     def _get_kps(
         self, 
         harris_response_map:np.ndarray, 
-        response_threshold:float, nms_radius:int=3, kp_max_num:int=None, 
+        response_threshold:float, nms_radius:int=None, kp_max_num:int=None, 
     ) -> np.ndarray:
+        # init
         key_pts_list = []
         scores = np.copy(harris_response_map)
         scores[scores<response_threshold] = 0
+
+        # set default value
+        if nms_radius is None: nms_radius = 3
 
         while True:
             print(scores.max())
@@ -71,9 +127,9 @@ class Harris_Detector(Detectors):
             if kp_max_num is not None and len(key_pts_list)>=kp_max_num:
                 break
             kp = np.unravel_index(scores.argmax(), scores.shape)
-            key_pts_list.append(kp)
+            key_pts_list.append((kp[1], kp[0]))
             scores = self._supress(scores, kp, nms_radius)
-        np.array(key_pts_list, dtype=np.float64)
+        return np.array(key_pts_list, dtype=np.float64)
 
     def _supress(self, scores:np.ndarray, kp:Tuple[int], radius:int=3)->np.ndarray:
         height, width = scores.shape
@@ -84,6 +140,7 @@ class Harris_Detector(Detectors):
 
         scores[top_bound:bottom_bound, left_bound:right_bound] = 0
         return scores
+
 
 
 
