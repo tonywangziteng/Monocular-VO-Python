@@ -2,6 +2,7 @@ from email.policy import default
 from importlib.resources import path
 import logging
 from math import ceil, floor
+from turtle import width
 from typing import Any, Tuple
 import cv2
 import numpy as np
@@ -45,20 +46,17 @@ class Harris_Detector(Detectors):
     ) -> None:
         super().__init__()
 
-    def detect(
+    def _block_detect(
         self, 
         img: np.ndarray, 
-        harris_threshold:float = 5e-3,
-        **kparams
+        **kargs
     )->np.ndarray:
         """
         :params img: gray scale image
-        :params nms_size:int = 3, block size to average the gradient
-        :params sobel_kernel_size:int = 3, 
-        :params harris_threshold:float = 2e-2,
-        :params harris_k:float = 0.04, k of det(M)-k*tr(M)^2
+        :params harris_threshold:float = 5e-3,
         :params **kparams:
-            kp_max_num: int, max keypoint number to return, default infinity
+            harris_threshold:float = 5e-3, 
+            block_kp_max_num: int, max keypoint number to return, default infinity
             nms_radius: int, nms radius when selecting keypoints
             block_size: int=3, block size to average the gradient
             sobel_kernel_size:int = 3, 
@@ -67,45 +65,75 @@ class Harris_Detector(Detectors):
         :return: (n*2) ndarray for n keypoints in image coordinate
         """
         super().detect(img)
-        # TODO: Go through the whole process, especially check _extract_param func
-
-        # extract harris parameters
-        block_size = self._extract_param(kparams, 'block_size', 3, int)
-        sobel_kernel_size = self._extract_param(kparams, 'sobel_kernel_size', 3, int)
-        harris_k = self._extract_param(kparams, 'harris_k', 0.04, float)
 
         corner_response_map = cv2.cornerHarris(
-            img, blockSize=block_size, ksize=sobel_kernel_size, k=harris_k
+            img, blockSize=self._extract_param(kargs, 'block_size', 3, int), 
+            ksize=self._extract_param(kargs, 'sobel_kernel_size', 3, int), 
+            k=self._extract_param(kargs, 'harris_k', 0.04, float)
         )
 
         corner_response_map[corner_response_map<0] = 0
         kps = self._get_kps(
             corner_response_map, 
-            response_threshold=harris_threshold, 
-            nms_radius=self._extract_param(kparams, 'nms_radius', default=3),
-            kp_max_num=self._extract_param(kparams, 'kp_max_num')
+            response_threshold=self._extract_param(kargs, 'harris_threshold', 5e-3), 
+            nms_radius=self._extract_param(kargs, 'nms_radius', default=3),
+            kp_max_num=self._extract_param(kargs, 'block_kp_max_num')
         )
 
         return kps
 
-    # TODO: distribute keypoints
-    def _distribute(
+    # TODO: 参数改到初始化里面
+    def detect(
         self, 
         img:np.ndarray, 
-        x_num:int=1, y_num:int=1, 
-        block_max_pts_num:int=None, 
-        **kparmas
-    ) -> np.ndarray:        
-        height, width = img.shape
+        x_num:int=1, y_num:int=1,  
+        **kargs
+    ) -> cv2.KeyPoint:   
+        """
+        Distribute the keypoints enenly through out the image. 
+        First cutting the image into blocks. Do Harris Detect in every block.
+        Finally stack all the result together
 
-        block_height, block_width = 1.*img.shape/x_num, 1.*img.shape/y_num
+        :params img: gray scale image
+        :params x_num: int = 1, the number of columns when cutting the image into blocks
+        :params y_num: int = 1, the number of lines when cutting the image into blocks
+        :params **kparams:
+            harris_threshold:float = 5e-3, 
+            block_kp_max_num: int, max keypoint number to return, default infinity
+            nms_radius: int, nms radius when selecting keypoints
+            block_size: int=3, block size to average the gradient
+            sobel_kernel_size:int = 3, 
+            harris_k:float = 0.04, 
+
+        :return: (n*2) ndarray for n keypoints in image coordinate
+        """
+        height, width = img.shape
+        block_width, block_height, = 1.*width/x_num, 1.*height/y_num
+
+        kpts_list = []
+        # block_kp_max_num = self._extract_param(kargs, "block_kp_max_num", None)
 
         for i in range(x_num):
             for j in range(y_num):
                 left_bound, right_bound = floor(i*block_width), floor((i+1)*block_width)
-                top_bound, bottom_bound = floor(j*block_width), floor((j+1)*block_width)
+                top_bound, bottom_bound = floor(j*block_height), floor((j+1)*block_height)
+                print(left_bound, right_bound)
                 patch = img[top_bound:bottom_bound, left_bound:right_bound]
-                kpts = self.detect(patch, **kparmas)
+                kpts = self._block_detect(patch, **kargs)
+                if len(kpts)>0:
+                    print(len(kpts))
+                    kpts = self._recover_pos(kpts, left_bound, top_bound)
+                    kpts_list.append(kpts)
+
+        if len(kpts_list)>0:
+            return cv2.KeyPoint_convert(np.concatenate(kpts_list, axis=0)) 
+        else:
+            return ()
+    
+    def _recover_pos(self, kpts:np.ndarray, x_start:int, y_start:np.ndarray)->np.ndarray:
+        kpts[:,0] = kpts[:,0]+x_start
+        kpts[:,1] = kpts[:,1]+y_start
+        return kpts
 
     def _get_kps(
         self, 
@@ -121,7 +149,6 @@ class Harris_Detector(Detectors):
         if nms_radius is None: nms_radius = 3
 
         while True:
-            print(scores.max())
             if scores.max() == 0:
                 break
             if kp_max_num is not None and len(key_pts_list)>=kp_max_num:
@@ -135,15 +162,17 @@ class Harris_Detector(Detectors):
         height, width = scores.shape
         left_bound = max(0, kp[1]-radius)
         top_bound = max(0, kp[0]-radius)
-        right_bound = min(width-1, kp[1]+radius)
-        bottom_bound = min(height-1, kp[0]+radius)
+        right_bound = min(width, kp[1]+radius+1)
+        bottom_bound = min(height, kp[0]+radius+1)
 
         scores[top_bound:bottom_bound, left_bound:right_bound] = 0
+
         return scores
 
 
 
-
+# TODO: 完成tow-stage的SIFT
+# 看看cv2.Keypoint 里面有没有scale 和 旋转信息
 class SIFT_Detector(Detectors):
     def __init__(self) -> None:
         super().__init__()
@@ -152,88 +181,3 @@ DETECTORS = {
     DET_TYPE.HARRIS: Harris_Detector
 }
 
-
-
-# class Harris:
-
-#     def __init__(self,harris_patch_size,harris_kappa,
-#                  query_keypoint_num,
-#                  nonmaximum_supression_radius):
-
-#         self.harris_patch_size=harris_patch_size
-#         self.harris_kappa=harris_kappa
-#         self.kp_num=query_keypoint_num
-#         self.suppresion_radius=nonmaximum_supression_radius
-#         self.split_num=4
-
-
-
-
-
-#     def calculate_Harris(self,img):
-#         # I_x=cv2.Sobel(self.img,ddepth=cv2.CV_8U,dx=1,dy=0,ksize=3)
-#         # I_y=cv2.Sobel(self.img,ddepth=cv2.CV_8U,dx=0,dy=1,ksize=3)
-#         I_x = convolve(img.astype('float'), [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
-#         I_y = convolve(img.astype('float'), [[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
-
-#         I_x_2 = np.square(I_x)
-#         I_y_2 = np.square(I_y)
-
-#         I_x_mul_I_y = I_x * I_y
-
-#         sigma_I_x_2 = convolve(I_x_2, np.ones(shape=(self.harris_patch_size, self.harris_patch_size)))
-#         sigma_I_y_2 = convolve(I_y_2, np.ones(shape=(self.harris_patch_size, self.harris_patch_size)))
-#         sigma_I_x_mul_I_y = convolve(I_x_mul_I_y, np.ones(shape=((self.harris_patch_size, self.harris_patch_size))))
-
-#         det = sigma_I_x_2 * sigma_I_y_2 - np.square(sigma_I_x_mul_I_y)
-#         trace = sigma_I_x_2 + sigma_I_y_2
-
-#         tmp = det - self.harris_kappa * np.square(trace)
-#         tmp[tmp < 0] = 0
-#         self.Harris = tmp
-
-
-
-#     def select_keypoints(self,img):
-#         self.calculate_Harris(img)
-#         keypoint_coord = np.zeros((self.kp_num, 2))
-#         # scores=np.ones(shape=Harris.shape,dtype=float)
-#         # np.copyto(scores,Harris)
-#         scores = np.copy(self.Harris)
-#         scores = np.pad(scores, self.suppresion_radius)
-
-#         h, w = self.Harris.shape
-#         nonmax_radius=self.suppresion_radius
-
-
-#         for i in range(0, self.kp_num):
-#             max_index = np.argmax(scores)
-
-#             max_h, max_w = np.unravel_index(max_index, (h + 2 * nonmax_radius, w + 2 * nonmax_radius))
-#             keypoint_coord[i, :] = [max_w - nonmax_radius, max_h - nonmax_radius]
-#             scores[max_h - nonmax_radius:max_h + nonmax_radius, max_w - nonmax_radius:max_w + nonmax_radius] = 0
-
-#         keypoint_coord = keypoint_coord.astype(int)
-
-#         return keypoint_coord
-
-#     def distribute_keypoints(self,img):
-#         h,w=img.shape
-#         split_h=8
-#         split_w=8
-
-#         h_list=np.linspace(0,h,split_h+1)[:-1].astype(int)
-#         w_list=np.linspace(0,w,split_w+1)[:-1].astype(int)
-
-#         delta_h=int(h/split_h)
-#         delta_w=int(w/split_w)
-
-
-#         keypoint=np.zeros((0,2))
-#         for i in range(split_h):
-#             for j in range(split_w):
-#                 keypoint_sub=self.select_keypoints(img[h_list[i]:h_list[i]+delta_h,w_list[j]:w_list[j]+delta_w])\
-#                              +np.array([[w_list[j],h_list[i]]])
-#                 keypoint=np.vstack((keypoint,keypoint_sub))
-
-#         return keypoint

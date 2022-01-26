@@ -19,10 +19,16 @@ def main():
     dataset = datasets[args.dataset](img_ptr=0)
 
     # -----------------------------------------
+    detector_args = {
+        "block_kp_max_num":20, 
+        # "nms_radius":10, 
+        # "block_size":7, 
+        # "sobel_kernel_size":5
+    }
     img0, rgb_img, _ = dataset.get_next_image()
     detector = Harris_Detector()
-    kps = detector.detect(img0, harris_threshold=0.01)
-    img_to_show = cv2.drawKeypoints(rgb_img, cv2.KeyPoint_convert(kps), rgb_img)
+    kps = detector.detect(img0, x_num=5, y_num=3, harris_threshold=1e-3, **detector_args)
+    img_to_show = cv2.drawKeypoints(rgb_img, kps, rgb_img)
     plt.figure()
     plt.imshow(img_to_show)
     plt.show()
