@@ -42,52 +42,59 @@ class Detectors(ABC):
 
 class Harris_Detector(Detectors):
     def __init__(
-        self, 
+        self, **kargs
     ) -> None:
+        """
+        :params block_size: int=3, block size to average the gradient in Harris
+        :params sobel_kernel_size:int = 3, sobel kernel size
+        :params harris_k:float = 0.04, det(M)-k*tr(M)^2
+        :params nms_radius: int=3, nms radius when finding corners
+        """
         super().__init__()
 
-    def _block_detect(
+        # Harris Parameters
+        self._block_size = self._extract_param(kargs, 'block_size', 3, int)
+        self._ksize=self._extract_param(kargs, 'sobel_kernel_size', 3, int) 
+        self._k=self._extract_param(kargs, 'harris_k', 0.04, float)
+
+        self._nms_radius = self._extract_param(kargs, 'nms_radius', default=3)
+
+    def _cell_detect(
         self, 
         img: np.ndarray, 
-        **kargs
+        threshold: float=5e-3, 
+        keypts_max_num: int=None
     )->np.ndarray:
         """
         :params img: gray scale image
-        :params harris_threshold:float = 5e-3,
-        :params **kparams:
-            harris_threshold:float = 5e-3, 
-            block_kp_max_num: int, max keypoint number to return, default infinity
-            nms_radius: int, nms radius when selecting keypoints
-            block_size: int=3, block size to average the gradient
-            sobel_kernel_size:int = 3, 
-            harris_k:float = 0.04, 
+        :params harris_threshold: float = 5e-3,
+        :params keypts_max_num: int=None, maximum keypoints number in each cell, None for infinity
 
         :return: (n*2) ndarray for n keypoints in image coordinate
         """
         super().detect(img)
 
         corner_response_map = cv2.cornerHarris(
-            img, blockSize=self._extract_param(kargs, 'block_size', 3, int), 
-            ksize=self._extract_param(kargs, 'sobel_kernel_size', 3, int), 
-            k=self._extract_param(kargs, 'harris_k', 0.04, float)
+            img, blockSize=self._block_size, 
+            ksize=self._ksize, 
+            k=self._k
         )
 
         corner_response_map[corner_response_map<0] = 0
         kps = self._get_kps(
             corner_response_map, 
-            response_threshold=self._extract_param(kargs, 'harris_threshold', 5e-3), 
-            nms_radius=self._extract_param(kargs, 'nms_radius', default=3),
-            kp_max_num=self._extract_param(kargs, 'block_kp_max_num')
-        )
+            response_threshold=threshold, 
+            nms_radius=self._nms_radius,
+            kp_max_num=keypts_max_num)
 
         return kps
 
-    # TODO: 参数改到初始化里面
     def detect(
         self, 
         img:np.ndarray, 
-        x_num:int=1, y_num:int=1,  
-        **kargs
+        harris_threshold:float=5e-3,
+        x_num:int=1, y_num:int=1, 
+        cell_keypts_max_num:int=None 
     ) -> cv2.KeyPoint:   
         """
         Distribute the keypoints enenly through out the image. 
@@ -95,15 +102,10 @@ class Harris_Detector(Detectors):
         Finally stack all the result together
 
         :params img: gray scale image
+        :params harris_threshold: float=5e-3, threshold for harris corner response function
         :params x_num: int = 1, the number of columns when cutting the image into blocks
         :params y_num: int = 1, the number of lines when cutting the image into blocks
-        :params **kparams:
-            harris_threshold:float = 5e-3, 
-            block_kp_max_num: int, max keypoint number to return, default infinity
-            nms_radius: int, nms radius when selecting keypoints
-            block_size: int=3, block size to average the gradient
-            sobel_kernel_size:int = 3, 
-            harris_k:float = 0.04, 
+        :params cell_keypts_max_num: int=None, maximum keypoints number in each cell, None for infinity
 
         :return: (n*2) ndarray for n keypoints in image coordinate
         """
@@ -117,11 +119,11 @@ class Harris_Detector(Detectors):
             for j in range(y_num):
                 left_bound, right_bound = floor(i*block_width), floor((i+1)*block_width)
                 top_bound, bottom_bound = floor(j*block_height), floor((j+1)*block_height)
-                print(left_bound, right_bound)
                 patch = img[top_bound:bottom_bound, left_bound:right_bound]
-                kpts = self._block_detect(patch, **kargs)
+                kpts = self._cell_detect(
+                    patch, harris_threshold, keypts_max_num=cell_keypts_max_num
+                )
                 if len(kpts)>0:
-                    print(len(kpts))
                     kpts = self._recover_pos(kpts, left_bound, top_bound)
                     kpts_list.append(kpts)
 
@@ -171,11 +173,26 @@ class Harris_Detector(Detectors):
 
 
 
-# TODO: 完成tow-stage的SIFT
+# TODO: SIFT Detector and Descriptor
 # 看看cv2.Keypoint 里面有没有scale 和 旋转信息
 class SIFT_Detector(Detectors):
-    def __init__(self) -> None:
+    def __init__(self, **kargs) -> None:
+        """
+        :param nfeatures: int=100, The number of best features to retain. The features are ranked by their scores
+        """
         super().__init__()
+        # params
+        self._sift_detector = cv2.SIFT_create(
+            nfeatures=self._extract_param(kargs, "nfeatures", 100, int), 
+            # nOctaveLayers=self._extract_param(kargs, "nOctaveLayers", 100, int), 
+            # contrastThreshold=self._extract_param(kargs, "contrastThreshold", 100, int), 
+            # edgeThreshold=self._extract_param(kargs, "edgeThreshold", 100, int),
+            # sigma=self._extract_param(kargs, "sigma", 100, int),
+        )
+
+    def detect(self, img:np.ndarray):
+        descriptor = cv2.SiftDescriptorExtractor
+        return self._sift_detector.detect(img, None)
 
 DETECTORS = {
     DET_TYPE.HARRIS: Harris_Detector
