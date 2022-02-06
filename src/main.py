@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pdb
 
 
-from utils.Detectors import Harris_Detector
+from utils.Detectors import Harris_Detector, SIFT_Detector
 from utils.utils import get_args
 from dataset import datasets
 
@@ -19,16 +19,20 @@ def main():
     dataset = datasets[args.dataset](img_ptr=0)
 
     # -----------------------------------------
-    detector_args = {
-        "block_kp_max_num":20, 
-        # "nms_radius":10, 
-        # "block_size":7, 
-        # "sobel_kernel_size":5
-    }
+    params = {"test":True, "harris_threshold":1e-3}
     img0, rgb_img, _ = dataset.get_next_image()
-    detector = Harris_Detector()
-    kps = detector.detect(img0, x_num=5, y_num=3, harris_threshold=1e-3, **detector_args)
-    img_to_show = cv2.drawKeypoints(rgb_img, kps, rgb_img)
+    harris_det = Harris_Detector()
+
+    # detector = SIFT_Detector()
+    # kps = harris_det.detect(img0)
+    # descriptors = detector.compute(img0, kps)
+    # print(kps[0].size, kps[0].angle)
+    # cv2.KeyPoint_convert(kps)
+    # pdb.set_trace()
+    
+    detector = Harris_Detector(**params)
+    kps = detector.detect(img0, x_cell_num=5, y_cell_num=3, cell_keypts_max_num=20)
+    img_to_show = cv2.drawKeypoints(rgb_img, kps, rgb_img, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
     plt.figure()
     plt.imshow(img_to_show)
     plt.show()
