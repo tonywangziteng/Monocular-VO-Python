@@ -19,20 +19,23 @@ def main():
     dataset = datasets[args.dataset](img_ptr=0)
 
     # -----------------------------------------
-    params = {"test":True}
+    params = {"test":True, "harris_threshold":1e-3}
     img0, rgb_img, _ = dataset.get_next_image()
-    detector = SIFT_Detector(**params)
-    kps = detector.detect(img0)
-    print(kps[0].size, kps[0].angle)
-    cv2.KeyPoint_convert(kps)
-    pdb.set_trace()
+    harris_det = Harris_Detector()
+
+    # detector = SIFT_Detector()
+    # kps = harris_det.detect(img0)
+    # descriptors = detector.compute(img0, kps)
+    # print(kps[0].size, kps[0].angle)
+    # cv2.KeyPoint_convert(kps)
+    # pdb.set_trace()
     
-    # detector = Harris_Detector(**Harris_params)
-    # kps = detector.detect(img0, harris_threshold=1e-2, x_num=5, y_num=3, cell_keypts_max_num=20)
-    # img_to_show = cv2.drawKeypoints(rgb_img, kps, rgb_img)
-    # plt.figure()
-    # plt.imshow(img_to_show)
-    # plt.show()
+    detector = Harris_Detector(**params)
+    kps = detector.detect(img0, x_cell_num=5, y_cell_num=3, cell_keypts_max_num=20)
+    img_to_show = cv2.drawKeypoints(rgb_img, kps, rgb_img, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+    plt.figure()
+    plt.imshow(img_to_show)
+    plt.show()
 
     # -----------------------------------------
 
