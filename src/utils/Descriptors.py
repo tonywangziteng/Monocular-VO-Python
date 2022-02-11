@@ -1,13 +1,12 @@
 import logging
 from typing import Any, Tuple
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import cv2
 import numpy as np
 
-from src.utils.Detectors import SIFT_Detector
-
-class Descriptor(ABC):
+from utils.utils import baseClass
+class Descriptor(baseClass):
     def __init__(self, **kargs) -> None:
         super().__init__()
 
@@ -41,10 +40,10 @@ class Descriptor(ABC):
         pass
 
 
-class SIFT_descriptor(Descriptor):
+class SIFTDescriptor(Descriptor):
     def __init__(self) -> None:
-        super(SIFT_Detector, self).__init__()
-    
+        super(SIFTDescriptor, self).__init__()
+        self._sift_descriptor = cv2.SIFT_create()
 
     def _compute(
         self, 
@@ -52,6 +51,6 @@ class SIFT_descriptor(Descriptor):
         keypoints:Tuple[cv2.KeyPoint]
     ) -> np.ndarray:
         # the return is (keypoints, descriptor)
-        descriptors = self._sift_detector.compute(img, keypoints, None)
+        descriptors = self._sift_descriptor.compute(img, keypoints, None)
 
         return descriptors[1]

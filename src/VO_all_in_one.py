@@ -1,0 +1,1 @@
+# TODO: 0.1 design VO class structure

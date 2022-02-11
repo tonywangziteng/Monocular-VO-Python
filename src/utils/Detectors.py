@@ -1,15 +1,18 @@
 import logging
 from math import floor
 from typing import Any, Tuple
+from abc import abstractmethod
+
 import cv2
 import numpy as np
-from abc import ABC, abstractmethod
 from enum import Enum
+
+from utils.utils import baseClass
 
 class DET_TYPE(Enum):
     HARRIS = 1 
 
-class Detectors(ABC):
+class Detectors(baseClass):
     def __init__(self) -> None:
         super().__init__()
 
@@ -76,7 +79,7 @@ class Detectors(ABC):
                 logging.error('result type {} is not of type {}'.format(type(res), param_type))
                 raise TypeError
 
-class Harris_Detector(Detectors):
+class HarrisDetector(Detectors):
     def __init__(
         self, **kargs
     ) -> None:
@@ -180,12 +183,12 @@ class Harris_Detector(Detectors):
 
         return scores
 
-class SIFT_Detector(Detectors):
+class SIFTDetector(Detectors):
     def __init__(self, **kargs) -> None:
         """
         :param nOctaveLayers: int=3, 
             The number of layers in each octave. 3 is the value used in D. Lowe paper. The number of octaves is computed automatically from the image resolution.\n
-        :param contrastThreshold: float=0.04, 
+        :param contrastThreshold: float=0.09, 
             The contrast threshold used to filter out weak features in semi-uniform (low-contrast) regions. The larger the threshold, the less features are produced by the detector.
             note The contrast threshold will be divided by nOctaveLayers when the filtering is applied. When nOctaveLayers is set to default and if you want to use the value used in D. Lowe paper, 0.03, set this argument to 0.09.\n
         :param edgeThreshold: float=10, 
@@ -197,11 +200,10 @@ class SIFT_Detector(Detectors):
         # params
 
         self._sift_detector = cv2.SIFT_create(
-            # nfeatures=self._extract_param(kargs, "nfeatures", 100, int), 
-            nOctaveLayers=self._extract_param(kargs, "nOctaveLayers", 3, int), 
-            contrastThreshold=self._extract_param(kargs, "contrastThreshold", 0.04, float), 
-            edgeThreshold=self._extract_param(kargs, "edgeThreshold", 10, float),
-            sigma=self._extract_param(kargs, "sigma", 1.6, float),
+            nOctaveLayers=self._extract_param(kargs, "nOctaveLayers", 3), 
+            contrastThreshold=self._extract_param(kargs, "contrastThreshold", 0.09), 
+            edgeThreshold=self._extract_param(kargs, "edgeThreshold", 10),
+            sigma=self._extract_param(kargs, "sigma", 1.6),
         )
         cv2.SIFT_create()
 
@@ -209,14 +211,14 @@ class SIFT_Detector(Detectors):
         kps = self._sift_detector.detect(img, None)
         return kps[:keypts_max_num]
 
-# TODO: ORB Detector
+# TODO: 2. ORB Detector
 
-# TODO: FAST Detector
+# TODO: 2. FAST Detector
 
     
 
 
 DETECTORS = {
-    DET_TYPE.HARRIS: Harris_Detector
+    DET_TYPE.HARRIS: HarrisDetector
 }
 
