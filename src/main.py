@@ -3,8 +3,9 @@ import logging
 import matplotlib.pyplot as plt
 import pdb
 
-
-from utils.Detectors import Harris_Detector, SIFT_Detector
+from utils.Descriptors import SIFTDescriptor
+from utils.Detectors import HarrisDetector, SIFTDetector
+from utils.features import SIFT
 from utils.utils import get_args
 from dataset import datasets
 
@@ -21,7 +22,7 @@ def main():
     # -----------------------------------------
     params = {"test":True, "harris_threshold":1e-3}
     img0, rgb_img, _ = dataset.get_next_image()
-    harris_det = Harris_Detector()
+    harris_det = HarrisDetector()
 
     # detector = SIFT_Detector()
     # kps = harris_det.detect(img0)
@@ -30,14 +31,21 @@ def main():
     # cv2.KeyPoint_convert(kps)
     # pdb.set_trace()
     
-    detector = Harris_Detector(**params)
-    kps = detector.detect(img0, x_cell_num=5, y_cell_num=3, cell_keypts_max_num=20)
+    feature_extractor = SIFT(edgeThreshold=3.)
+
+    # kps = detector.detect(img0, x_cell_num=5, y_cell_num=3, cell_keypts_max_num=20)
+    # description = descriptor.describe(img0, kps)
+    # kps = feature_extractor.detect(img0,x_cell_num=5, y_cell_num=3, cell_keypts_max_num=20)
+    # description = feature_extractor.describe(img0, kps)
+    kps, description = feature_extractor.detectAndDescribe(img0,x_cell_num=5, y_cell_num=3, cell_keypts_max_num=20)
     img_to_show = cv2.drawKeypoints(rgb_img, kps, rgb_img, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
     plt.figure()
     plt.imshow(img_to_show)
     plt.show()
+    pdb.set_trace()
 
     # -----------------------------------------
+    # TODO: 0.0 VO framework
 
     # VO = VOs.VO_TYPES[args.vo]()
     # VO = MONO_VO_PnP(dataset.K, show_traj=PLOT_TRAJ, f_extract_type="SIFT")

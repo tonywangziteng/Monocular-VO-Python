@@ -1,20 +1,18 @@
-from email.policy import default
-from importlib.resources import path
 import logging
-from math import ceil, floor
-from turtle import width
+from math import floor
 from typing import Any, Tuple
+from abc import abstractmethod
+
 import cv2
 import numpy as np
-from abc import ABC, abstractmethod
 from enum import Enum
 
-import pdb
+from utils.utils import baseClass
 
 class DET_TYPE(Enum):
     HARRIS = 1 
 
-class Detectors(ABC):
+class Detectors(baseClass):
     def __init__(self) -> None:
         super().__init__()
 
@@ -24,8 +22,18 @@ class Detectors(ABC):
         cell_keypts_max_num:int=None, 
         **kargs
     )->Tuple[cv2.KeyPoint]:
-        if len(img.shape)==3:
-            return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        """
+        Distribute the keypoints enenly through out the image. 
+        First cutting the image into blocks. Do detection in every block.
+        Finally stack all the result together
+
+        :params img: gray scale image
+        :params x_cell_num: int = 1, the number of columns when cutting the image into blocks
+        :params y_cell_num: int = 1, the number of lines when cutting the image into blocks
+        :params cell_keypts_max_num: int=None, maximum keypoints number in each cell, None for infinity
+
+        :return: tuple of n keypoints 
+        """
 
         height, width = img.shape
         block_width, block_height, = 1.*width/x_cell_num, 1.*height/y_cell_num
@@ -71,12 +79,12 @@ class Detectors(ABC):
                 logging.error('result type {} is not of type {}'.format(type(res), param_type))
                 raise TypeError
 
-class Harris_Detector(Detectors):
+class HarrisDetector(Detectors):
     def __init__(
         self, **kargs
     ) -> None:
         """
-        :params block_size: int=3, block size to average the gradient in Harris
+        :params block_size: int=3, block size to average the gradient in Harris\n
         :params sobel_kernel_size:int = 3, sobel kernel size
         :params harris_k:float = 0.04, det(M)-k*tr(M)^2
         :params nms_radius: int=3, nms radius when finding corners
@@ -175,28 +183,27 @@ class Harris_Detector(Detectors):
 
         return scores
 
-class SIFT_Detector(Detectors):
+class SIFTDetector(Detectors):
     def __init__(self, **kargs) -> None:
         """
         :param nOctaveLayers: int=3, 
-            The number of layers in each octave. 3 is the value used in D. Lowe paper. The number of octaves is computed automatically from the image resolution.
-        :param contrastThreshold: float=0.04, 
+            The number of layers in each octave. 3 is the value used in D. Lowe paper. The number of octaves is computed automatically from the image resolution.\n
+        :param contrastThreshold: float=0.09, 
             The contrast threshold used to filter out weak features in semi-uniform (low-contrast) regions. The larger the threshold, the less features are produced by the detector.
-            note The contrast threshold will be divided by nOctaveLayers when the filtering is applied. When nOctaveLayers is set to default and if you want to use the value used in D. Lowe paper, 0.03, set this argument to 0.09.
+            note The contrast threshold will be divided by nOctaveLayers when the filtering is applied. When nOctaveLayers is set to default and if you want to use the value used in D. Lowe paper, 0.03, set this argument to 0.09.\n
         :param edgeThreshold: float=10, 
-            The threshold used to filter out edge-like features. Note that the its meaning is different from the contrastThreshold, i.e. the larger the edgeThreshold, the less features are filtered out (more features are retained).
+            The threshold used to filter out edge-like features. Note that the its meaning is different from the contrastThreshold, i.e. the larger the edgeThreshold, the less features are filtered out (more features are retained).\n
         :param sigma: float=1.6
-            The sigma of the Gaussian applied to the input image at the octave #0. If your image is captured with a weak camera with soft lenses, you might want to reduce the number.
+            The sigma of the Gaussian applied to the input image at the octave #0. If your image is captured with a weak camera with soft lenses, you might want to reduce the number.\n
         """
         super().__init__()
         # params
 
         self._sift_detector = cv2.SIFT_create(
-            # nfeatures=self._extract_param(kargs, "nfeatures", 100, int), 
-            nOctaveLayers=self._extract_param(kargs, "nOctaveLayers", 3, int), 
-            contrastThreshold=self._extract_param(kargs, "contrastThreshold", 0.04, float), 
-            edgeThreshold=self._extract_param(kargs, "edgeThreshold", 10, float),
-            sigma=self._extract_param(kargs, "sigma", 1.6, float),
+            nOctaveLayers=self._extract_param(kargs, "nOctaveLayers", 3), 
+            contrastThreshold=self._extract_param(kargs, "contrastThreshold", 0.09), 
+            edgeThreshold=self._extract_param(kargs, "edgeThreshold", 10),
+            sigma=self._extract_param(kargs, "sigma", 1.6),
         )
         cv2.SIFT_create()
 
@@ -204,16 +211,14 @@ class SIFT_Detector(Detectors):
         kps = self._sift_detector.detect(img, None)
         return kps[:keypts_max_num]
 
-    # def compute(
-    #     self, 
-    #     img:np.ndarray, 
-    #     keypoints:Tuple[cv2.KeyPoint]
-    # ) -> np.ndarray:
-    #     descriptors = self._sift_detector.compute(img, keypoints, None)
-    #     return descriptors[1]
+# TODO: 2. ORB Detector
+
+# TODO: 2. FAST Detector
+
+    
 
 
 DETECTORS = {
-    DET_TYPE.HARRIS: Harris_Detector
+    DET_TYPE.HARRIS: HarrisDetector
 }
 
