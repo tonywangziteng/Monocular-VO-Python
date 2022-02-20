@@ -2,12 +2,14 @@ import logging
 from math import floor
 from typing import Any, Tuple
 from abc import abstractmethod
+import pdb
 
 import cv2
 import numpy as np
 from enum import Enum
 
 from utils.utils import baseClass
+
 
 class DET_TYPE(Enum):
     HARRIS = 1 
@@ -210,6 +212,58 @@ class SIFTDetector(Detectors):
     def _cell_detect(self, img:np.ndarray, keypts_max_num:int=None, **kargs)->Tuple[cv2.KeyPoint]:
         kps = self._sift_detector.detect(img, None)
         return kps[:keypts_max_num]
+
+class ShiTomasiDetector(Detectors):
+
+    def __init__(
+        self, **kargs
+    ) -> None:
+        """
+        :params block_size: int=3, block size to average the gradient in Harris\n
+        :params nms_radius: int=3, nms radius when finding corners
+        """
+        super().__init__()
+
+        # Harris Parameters
+        self._block_size = self._extract_param(kargs, 'block_size', 3, int)
+        self._nms_radius = self._extract_param(kargs, 'nms_radius', default=3)
+
+
+    def detect(
+        self, 
+        img:np.ndarray, 
+        x_cell_num:int=1, y_cell_num:int=1, 
+        cell_keypts_max_num:int=None, 
+        **kargs
+    ) -> cv2.KeyPoint:   
+        """
+        Distribute the keypoints enenly through out the image. 
+        First cutting the image into blocks. Do Harris Detect in every block.
+        Finally stack all the result together
+
+        :params img: gray scale image
+        :params x_cell_num: int = 1, the number of columns when cutting the image into blocks
+        :params y_cell_num: int = 1, the number of lines when cutting the image into blocks
+        :params cell_keypts_max_num: int=None, maximum keypoints number in each cell, None for infinity
+        :params quality_level: float=0.01, Parameter characterizing the minimal accepted quality of image corners. The parameter value is multiplied by the best corner quality measure, which is the minimal eigenvalue (see cornerMinEigenVal ) or the Harris function response (see cornerHarris ). The corners with the quality measure less than the product are rejected. For example, if the best corner has the quality measure = 1500, and the qualityLevel=0.01 , then all the corners with the quality measure less than 15 are rejected.
+        :params min_distance: int=3, Minimum possible Euclidean distance between the returned corners
+
+        :return: tuple of n keypoints 
+        """
+        return super().detect(img, x_cell_num, y_cell_num, cell_keypts_max_num, **kargs)
+
+    def _cell_detect(self, img: np.ndarray, keypts_max_num: int = None, **kargs) -> Tuple[cv2.KeyPoint]:
+        super()._cell_detect(img, keypts_max_num, **kargs)
+        kps = cv2.goodFeaturesToTrack(
+            img, keypts_max_num, 
+            qualityLevel=self._extract_param(kargs, "qualityLevel", 0.01), 
+            minDistance=self._extract_param(kargs, "min_distance", 3)
+        )
+        
+        return cv2.KeyPoint_convert(kps[:, 0, :])
+
+
+    
 
 # TODO: 2. ORB Detector
 
