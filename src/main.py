@@ -7,7 +7,7 @@ from utils.Descriptors import SIFTDescriptor
 from utils.Detectors import HarrisDetector, SIFTDetector, ShiTomasiDetector
 from utils.features import SIFT
 from utils.utils import get_args
-from dataset import datasets
+from dataset import datasets, KITTI_dataset
 from VO_all_in_one import VisualOdometry
 
 
@@ -18,7 +18,8 @@ def main():
     logging.basicConfig(level=logging.INFO, \
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     args = get_args()
-    dataset = datasets[args.dataset](img_ptr=0)
+    # dataset = datasets[args.dataset](img_ptr=0)
+    dataset = KITTI_dataset()
 
     # -----------------------------------------
     # params = {"test":True, "harris_threshold":1e-3}
@@ -49,6 +50,14 @@ def main():
     # TODO: 0.0 VO framework
 
     VO = VisualOdometry(dataset.K)
+    
+    img, img_rgb, img_name = dataset.get_next_image()
+    for i in range(5):
+        new_img, new_img_rgb, new_img_name = dataset.get_next_image()
+    kps_detector = HarrisDetector()
+    while not VO.bootstrap_KLT(img_rgb, new_img_rgb, kps_detector):
+        img = new_img
+        new_img, _, _ = dataset.get_img()
 
     # VO = VOs.VO_TYPES[args.vo]()
     # VO = MONO_VO_PnP(dataset.K, show_traj=PLOT_TRAJ, f_extract_type="SIFT")

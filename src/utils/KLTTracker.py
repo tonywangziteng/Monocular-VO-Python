@@ -1,5 +1,6 @@
 from typing import Tuple
 import json
+import pdb
 
 import cv2
 import numpy as np
@@ -30,18 +31,19 @@ class KLTTracker(baseClass):
         :return: mask, match mask, 
         """
         # forward tracking
+        ref_kps = cv2.KeyPoint_convert(ref_kps)
         kp1, st, err = cv2.calcOpticalFlowPyrLK(img0, img1, ref_kps, None, **KLT_args)
         mask = self._get_inside_img_mask(img1, kp1)
 
         # back tracking
         if backtrack_check:
-            kp0, st, err = cv2.calcOpticalFlowPyrLK(img0, img1, kp1, None, **KLT_args)
+            kp0, st, err = cv2.calcOpticalFlowPyrLK(img1, img0, kp1, None, **KLT_args)
             dist = abs(ref_kps - kp0).reshape(-1, 2).max(-1)  # Verify the absolute difference between feature points
             back_track_mask = dist < self._extract_param(KLT_args, "back_track_error", 5)
             mask = np.logical_and(mask, back_track_mask)
 
-        valid_kp0 = ref_kps[mask]
-        valid_kp1 = kp1[mask]
+        valid_kp0 = cv2.KeyPoint_convert(ref_kps[mask])
+        valid_kp1 = cv2.KeyPoint_convert(kp1[mask])
 
         return valid_kp0, valid_kp1, mask
 

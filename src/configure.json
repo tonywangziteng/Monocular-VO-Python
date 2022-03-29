@@ -2,6 +2,6 @@
     "VO":{
         "triangulate_angle_init_thresh":8,
         "triangulate_angle_start_thresh":8,
-        "triangulate_agnle_lower_bound":0.5
+        "triangulate_angle_lower_bound":0.5
     }
 }
